@@ -2,11 +2,12 @@
 import asyncio
 import logging
 import os
+import time
 
 from dotenv import load_dotenv
 from telethon import TelegramClient, events
 
-from .parser import parse_signal
+from .parser import parse_signals
 from .mt5_trader import MT5Config, MT5Trader
 from .trader import Config, Trader
 
@@ -59,20 +60,28 @@ def main() -> None:
     chat = int(chat) if chat.lstrip("-").isdigit() else chat
     allowed = {int(x) for x in os.getenv("TG_ALLOWED_SENDERS", "").split(",") if x.strip()}
 
+    dedupe_secs = int(os.getenv("DEDUPE_MINUTES", "30")) * 60
+    seen: dict[tuple, float] = {}
+
     client = TelegramClient("session", int(os.environ["TG_API_ID"]), os.environ["TG_API_HASH"])
 
     @client.on(events.NewMessage(chats=chat))
     async def handler(event):
         if allowed and event.sender_id not in allowed:
             return
-        sig = parse_signal(event.raw_text or "")
-        if not sig:
-            return
-        log.info("Senal detectada: %s", sig)
-        try:
-            await asyncio.to_thread(trader.execute, sig)
-        except Exception:
-            log.exception("Error ejecutando la senal")
+        now = time.time()
+        for sig in parse_signals(event.raw_text or ""):
+            # el mismo mensaje se suele reenviar (junto y luego por separado): no operar dos veces
+            key = (sig.symbol, sig.side, sig.stop_loss, tuple(sig.take_profits))
+            if now - seen.get(key, 0) < dedupe_secs:
+                log.info("Senal duplicada ignorada: %s %s", sig.symbol, sig.side)
+                continue
+            seen[key] = now
+            log.info("Senal detectada: %s", sig)
+            try:
+                await asyncio.to_thread(trader.execute, sig)
+            except Exception:
+                log.exception("Error ejecutando la senal")
 
     log.info("Bot iniciado (dry_run=%s, sandbox=%s)", dry_run, sandbox)
     with client:

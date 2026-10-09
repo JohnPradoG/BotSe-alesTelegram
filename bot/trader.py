@@ -69,8 +69,9 @@ class Trader:
 
         price = float(self.ex.fetch_ticker(s.symbol)["last"])
         entry = s.entry or price
-        if s.entry and abs(price - s.entry) / s.entry * 100 > c.max_slippage_pct:
-            log.warning("Precio %.6f muy lejos de entrada %.6f; senal descartada", price, s.entry)
+        quoted = s.entry or s.ref_price
+        if quoted and abs(price - quoted) / quoted * 100 > c.max_slippage_pct:
+            log.warning("Precio %.6f muy lejos del precio de la senal %.6f; descartada", price, quoted)
             return None
 
         sl = s.stop_loss

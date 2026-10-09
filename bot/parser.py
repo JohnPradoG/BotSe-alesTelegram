@@ -38,6 +38,7 @@ class Signal:
     stop_loss: float | None
     take_profits: list[float] = field(default_factory=list)
     leverage: int | None = None
+    ref_price: float | None = None  # precio "actual" citado en la senal (solo referencia)
 
 
 def _num(s: str) -> float:
@@ -92,7 +93,14 @@ def parse_signal(text: str) -> Signal | None:
         return None
 
     entry = None
-    em = re.search(
+    ref_price = None
+    cm = re.search(
+        rf"(?:current[\s-]*price|precio[\s-]*actual|actual[\s-]*price|now|ahora)[^\d\n]{{0,15}}{NUM}",
+        t, re.I,
+    )
+    if cm:
+        ref_price = _num(cm.group(1))
+    em = None if cm else re.search(
         rf"(?:entry|entrada|enter|entrar|precio|price|@)[^\d\n]{{0,25}}{NUM}", t, re.I
     )
     if em and not re.search(r"market|mercado", em.group(0), re.I):
@@ -116,13 +124,23 @@ def parse_signal(text: str) -> Signal | None:
     )
     leverage = int(lev_raw) if lev_raw else None
 
-    sig = Signal(symbol, side, entry, sl, tps, leverage)
+    sig = Signal(symbol, side, entry, sl, tps, leverage, ref_price)
     return sig if validate(sig) else None
+
+
+def parse_signals(text: str) -> list[Signal]:
+    """Un mensaje puede traer varias senales (cada una empieza por 'Pair:')."""
+    chunks = re.split(r"(?im)^(?=\s*(?:pair|par)\s*:)", text)
+    chunks = [c for c in chunks if re.match(r"(?i)\s*(?:pair|par)\s*:", c)]
+    if not chunks:
+        chunks = [text]
+    sigs = [parse_signal(c) for c in chunks]
+    return [x for x in sigs if x]
 
 
 def validate(s: Signal) -> bool:
     """Coherencia basica: SL y TPs del lado correcto respecto a la entrada."""
-    ref = s.entry
+    ref = s.entry if s.entry is not None else s.ref_price
     if ref is None:
         return True  # se valida contra precio de mercado al ejecutar
     if s.stop_loss is not None:

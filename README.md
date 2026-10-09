@@ -30,6 +30,17 @@ si falla, fija `MT5_SYMBOL_SUFFIX`). El lote se calcula con el valor del tick de
 el riesgo por operación es correcto para cualquier instrumento. Si hay varios TPs, abre una posición por TP.
 
 ## Formatos reconocidos
+Un mismo mensaje puede traer varias señales (cada una empieza por `Pair:`); se procesan por separado.
+Si la señal dice `Current price`, se opera **a mercado** (ese precio solo sirve para descartarla si el
+mercado ya se movió más de `MAX_SLIPPAGE_PCT`). Las señales idénticas repetidas dentro de `DEDUPE_MINUTES`
+se ignoran, para no duplicar operaciones cuando el admin reenvía el mismo mensaje.
+```
+Pair: EUR/USD
+Current price: ~ 1.11981
+Direction: SELL
+Stop Loss: 1.12107
+Take Profit: 1.11792
+```
 ```
 BUY EUR/USD @ 1.0850
 SL 1.0820

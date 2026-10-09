@@ -94,8 +94,9 @@ class MT5Trader:
 
         price = tick.ask if s.side == "buy" else tick.bid
         entry = s.entry or price
-        if s.entry and abs(price - s.entry) / s.entry * 100 > c.max_slippage_pct:
-            log.warning("Precio %s lejos de la entrada %s; senal descartada", price, s.entry)
+        quoted = s.entry or s.ref_price
+        if quoted and abs(price - quoted) / quoted * 100 > c.max_slippage_pct:
+            log.warning("Precio %s lejos del precio de la senal %s; descartada", price, quoted)
             return None
 
         sl = s.stop_loss

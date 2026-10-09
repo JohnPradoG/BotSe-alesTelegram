@@ -42,3 +42,54 @@ def test_index():
 def test_entry_range_uses_first():
     s = parse_signal("GBPJPY BUY entry: 190.50-190.70 SL 190.00 TP 191.50")
     assert s.symbol == "GBPJPY" and s.entry == 190.5
+
+
+BATCH = """Atención, amigos! Empezamos la sesión sobre señales. Preparaos!
+Pair: NZD/USD
+
+Current price: ~ 0.55979
+
+Direction: SELL
+
+Stop Loss: 0.56049
+
+Take Profit: 0.55874
+
+Pair: GBP/USD
+
+Current price: ~ 1.32141
+
+Direction: BUY
+
+Stop Loss: 1.32040
+
+Take Profit: 1.32209
+
+Pair: EUR/USD
+
+Current price: ~ 1.11981
+
+Direction: SELL
+
+Stop Loss: 1.12107
+
+Take Profit: 1.11792
+Se las voy a pasar independientes"""
+
+
+def test_real_batch_message():
+    from bot.parser import parse_signals
+    sigs = parse_signals(BATCH)
+    assert [(s.symbol, s.side) for s in sigs] == [
+        ("NZDUSD", "sell"), ("GBPUSD", "buy"), ("EURUSD", "sell")]
+    nzd = sigs[0]
+    assert nzd.entry is None and nzd.ref_price == 0.55979  # a mercado
+    assert nzd.stop_loss == 0.56049 and nzd.take_profits == [0.55874]
+    assert sigs[1].stop_loss == 1.3204 and sigs[1].take_profits == [1.32209]
+
+
+def test_single_message_and_intro():
+    from bot.parser import parse_signals
+    assert parse_signals("Atención, amigos! Empezamos la sesión sobre señales. Preparaos!") == []
+    s = parse_signals("Pair: EUR/USD\nCurrent price: ~ 1.11981\nDirection: SELL\nStop Loss: 1.12107\nTake Profit: 1.11792")
+    assert len(s) == 1 and s[0].symbol == "EURUSD"
