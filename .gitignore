@@ -4,3 +4,4 @@
 __pycache__/
 .pytest_cache/
 trades.jsonl
+bot-restarts.log

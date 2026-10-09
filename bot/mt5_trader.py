@@ -51,6 +51,10 @@ class MT5Trader:
 
         self.mt5 = mt5
         self.cfg = cfg
+        self._connect()
+
+    def _connect(self) -> None:
+        mt5, cfg = self.mt5, self.cfg
         kwargs = {}
         if cfg.terminal_path:
             kwargs["path"] = cfg.terminal_path
@@ -61,6 +65,14 @@ class MT5Trader:
         log.info("Conectado a MT5: %s", mt5.account_info().server)
 
     # ---------- helpers ----------
+    def _ensure_connected(self) -> None:
+        """El terminal puede cerrarse o perder conexion con el broker durante el dia."""
+        ti = self.mt5.terminal_info()
+        if ti is None or not ti.connected:
+            log.warning("MT5 desconectado; reconectando")
+            self.mt5.shutdown()
+            self._connect()
+
     def resolve_symbol(self, name: str) -> str | None:
         """Busca el simbolo del broker: exacto, con sufijo configurado o que empiece por el nombre."""
         names = [s.name for s in (self.mt5.symbols_get() or [])]
@@ -81,6 +93,7 @@ class MT5Trader:
 
     # ---------- ejecucion ----------
     def execute(self, s: Signal) -> dict | None:
+        self._ensure_connected()
         mt5, c = self.mt5, self.cfg
         sym = self.resolve_symbol(s.symbol)
         if not sym:

@@ -63,13 +63,28 @@ def main() -> None:
     dedupe_secs = int(os.getenv("DEDUPE_MINUTES", "30")) * 60
     seen: dict[tuple, float] = {}
 
-    client = TelegramClient("session", int(os.environ["TG_API_ID"]), os.environ["TG_API_HASH"])
+    max_age = int(os.getenv("MAX_SIGNAL_AGE_SECONDS", "120"))
+    client = TelegramClient(
+        "session", int(os.environ["TG_API_ID"]), os.environ["TG_API_HASH"],
+        connection_retries=-1, retry_delay=5, auto_reconnect=True,  # reconectar siempre
+    )
+
+    async def notify(msg: str) -> None:
+        """Aviso a tus 'Mensajes guardados' de Telegram."""
+        try:
+            await client.send_message("me", f"🤖 {msg}")
+        except Exception:
+            log.exception("No se pudo enviar el aviso")
 
     @client.on(events.NewMessage(chats=chat))
     async def handler(event):
         if allowed and event.sender_id not in allowed:
             return
         now = time.time()
+        # tras una caida de red Telegram entrega mensajes atrasados: no operar senales viejas
+        if now - event.date.timestamp() > max_age:
+            log.warning("Mensaje antiguo ignorado (%ss)", int(now - event.date.timestamp()))
+            return
         for sig in parse_signals(event.raw_text or ""):
             # el mismo mensaje se suele reenviar (junto y luego por separado): no operar dos veces
             key = (sig.symbol, sig.side, sig.stop_loss, tuple(sig.take_profits))
@@ -79,12 +94,19 @@ def main() -> None:
             seen[key] = now
             log.info("Senal detectada: %s", sig)
             try:
-                await asyncio.to_thread(trader.execute, sig)
-            except Exception:
+                plan = await asyncio.to_thread(trader.execute, sig)
+                if plan:
+                    tag = "SIMULADA" if plan.get("dry_run") else "ABIERTA"
+                    await notify(f"Operacion {tag}: {sig.side.upper()} {sig.symbol} SL {sig.stop_loss} TP {sig.take_profits}")
+                else:
+                    await notify(f"Senal NO operada: {sig.side.upper()} {sig.symbol} (revisa el log)")
+            except Exception as e:
                 log.exception("Error ejecutando la senal")
+                await notify(f"ERROR operando {sig.symbol}: {e}")
 
     log.info("Bot iniciado (dry_run=%s, sandbox=%s)", dry_run, sandbox)
     with client:
+        client.loop.run_until_complete(notify(f"Bot iniciado (dry_run={dry_run}). Escuchando senales."))
         client.run_until_disconnected()
 
 

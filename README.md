@@ -15,6 +15,18 @@ python -m bot.main
 ```
 La primera vez Telethon pedirá tu teléfono y código de Telegram.
 
+## Dejarlo funcionando todo el día
+MT5 solo corre en Windows, así que el bot debe estar en un PC que no se apague o, mejor, en un **VPS Windows**
+(suelen costar unos 10-20 USD/mes; elige uno cercano al servidor de tu broker). Allí:
+1. Instala MT5, inicia sesión en tu cuenta y marca "guardar contraseña"; deja MT5 abierto.
+2. Instala Python, el proyecto y configura `.env`.
+3. Ejecuta `run.bat` (reinicia el bot si se cae). Para que arranque al encender el equipo, pon un acceso directo a `run.bat` en `shell:startup`.
+
+Cobertura ante fallos: Telegram y MT5 se reconectan solos; los mensajes con más de `MAX_SIGNAL_AGE_SECONDS`
+(120 s) se ignoran para no operar señales atrasadas tras un corte; y el bot te escribe en tus
+**Mensajes guardados** de Telegram cuando arranca, abre una operación o falla.
+Con el mercado forex cerrado (fin de semana) las órdenes se rechazan y recibes el aviso.
+
 ## Seguridad (léelo)
 - **Empieza con `DRY_RUN=true`**: solo registra el plan en `trades.jsonl`, no envía órdenes.
 - Luego prueba con `SANDBOX=true` (testnet) antes de usar dinero real.
