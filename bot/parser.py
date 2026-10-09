@@ -1,15 +1,38 @@
-"""Interpreta mensajes de senales de trading (ES/EN) y los convierte en Signal."""
+"""Interpreta mensajes de senales de trading (ES/EN) y los convierte en Signal.
+
+Soporta forex (EURUSD, GBP/JPY), metales (XAUUSD), indices (US30, NAS100),
+alias en lenguaje libre (bot/aliases.json) y cripto (#BTCUSDT).
+"""
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 
 NUM = r"(\d[\d.,]*)"
+
+CURRENCIES = {
+    "EUR", "USD", "GBP", "JPY", "CHF", "AUD", "NZD", "CAD", "SEK", "NOK", "DKK",
+    "MXN", "ZAR", "TRY", "PLN", "HKD", "SGD", "CNH", "XAU", "XAG",
+}
+INDEXES = {"US30", "US100", "US500", "NAS100", "SPX500", "GER40", "DE40", "UK100",
+           "JP225", "USTEC", "DJ30", "USOIL", "UKOIL"}
+_ALIASES: dict[str, str] | None = None
+
+
+def load_aliases() -> dict[str, str]:
+    """Carga aliases.json (editable) en minusculas, mas los de usuario en ALIASES_FILE."""
+    global _ALIASES
+    if _ALIASES is None:
+        _ALIASES = {k.lower(): v.upper() for k, v in
+                    json.loads((Path(__file__).parent / "aliases.json").read_text("utf-8")).items()}
+    return _ALIASES
 
 
 @dataclass
 class Signal:
-    symbol: str  # formato ccxt, ej: BTC/USDT:USDT
+    symbol: str  # canonico: EURUSD, XAUUSD, NAS100, BTCUSDT ...
     side: str  # "buy" (long) o "sell" (short)
     entry: float | None  # None = entrar a mercado
     stop_loss: float | None
@@ -31,33 +54,46 @@ def _find(pattern: str, text: str) -> str | None:
     return m.group(1) if m else None
 
 
-def parse_signal(text: str, quote: str = "USDT") -> Signal | None:
+def detect_symbol(text: str) -> str | None:
+    low = text.lower()
+    # 1) alias en lenguaje libre (palabra completa)
+    for alias, sym in sorted(load_aliases().items(), key=lambda kv: -len(kv[0])):
+        if re.search(rf"(?<![a-z0-9]){re.escape(alias)}(?![a-z0-9])", low):
+            return sym
+    up = text.upper()
+    # 2) indices / materias primas
+    for m in re.finditer(r"[A-Z0-9]{4,6}", up):
+        if m.group(0) in INDEXES:
+            return m.group(0)
+    # 3) par de divisas EURUSD, EUR/USD, EUR-USD, EUR USD
+    for m in re.finditer(r"(?=(?<![A-Z])([A-Z]{3})\s?[/\-_ ]?\s?([A-Z]{3})(?![A-Z]))", up):
+        a, b = m.groups()
+        if a in CURRENCIES and b in CURRENCIES and a != b:
+            return a + b
+    # 4) cripto contra USDT / USDC: #BTCUSDT, BTC/USDT
+    m = re.search(r"(?<![A-Z0-9])([A-Z0-9]{2,10})\s?[/\-_]?\s?(USDT|USDC)(?![A-Z])", up)
+    if m:
+        return m.group(1) + m.group(2)
+    return None
+
+
+def parse_signal(text: str) -> Signal | None:
     """Devuelve Signal o None si el texto no parece una senal valida."""
     t = text.replace(" ", " ")
 
-    # Direccion
     long_m = re.search(r"\b(long|buy|compra|comprar)\b", t, re.I)
     short_m = re.search(r"\b(short|sell|venta|vender)\b", t, re.I)
     if bool(long_m) == bool(short_m):
         return None  # ninguna o ambiguas
     side = "buy" if long_m else "sell"
 
-    # Simbolo: #BTCUSDT, BTC/USDT, BTC-USDT, $BTC
-    sym = None
-    m = re.search(rf"[#$]?\b([A-Z0-9]{{2,10}})\s*[/\-_]?\s*{quote}\b", t, re.I)
-    if m:
-        sym = m.group(1).upper()
-    else:
-        m = re.search(r"[#$]([A-Z][A-Z0-9]{1,9})\b", t)
-        if m:
-            sym = m.group(1).upper()
-    if not sym or sym in {"LONG", "SHORT", "BUY", "SELL"}:
+    symbol = detect_symbol(t)
+    if not symbol:
         return None
-    symbol = f"{sym}/{quote}:{quote}"
 
     entry = None
     em = re.search(
-        rf"(?:entry|entrada|enter|entrar|precio)[^\d\n]{{0,25}}{NUM}", t, re.I
+        rf"(?:entry|entrada|enter|entrar|precio|price|@)[^\d\n]{{0,25}}{NUM}", t, re.I
     )
     if em and not re.search(r"market|mercado", em.group(0), re.I):
         entry = _num(em.group(1))
@@ -67,7 +103,7 @@ def parse_signal(text: str, quote: str = "USDT") -> Signal | None:
 
     tps: list[float] = []
     for m in re.finditer(
-        rf"(?:take[\s-]*profit|\btp\s*\d*|target|objetivo)\s*\d*[^\d\n]{{0,12}}{NUM}",
+        rf"(?:take[\s-]*profit|\btp|target|objetivo)\s*(?:\d(?![\d.,]))?[^\d\n]{{0,12}}{NUM}",
         t,
         re.I,
     ):

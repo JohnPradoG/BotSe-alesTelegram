@@ -1,7 +1,11 @@
 # Bot de señales Telegram → Trading
 
 Lee un grupo de Telegram con tu cuenta, detecta señales (LONG/SHORT, entrada, SL, TPs, apalancamiento)
-y abre la operación en el exchange vía [ccxt](https://github.com/ccxt/ccxt) (por defecto Binance Futures).
+y abre la operación en tu broker. El instrumento lo toma de cada señal: divisas (EURUSD, GBP/JPY),
+oro/plata (XAUUSD, "oro"), índices (US30, NAS100, "nasdaq"), petróleo y cripto.
+
+- `BROKER=mt5` (por defecto): **MetaTrader 5**, para forex, metales e índices. Solo Windows con el terminal MT5 abierto.
+- `BROKER=ccxt`: exchanges cripto (Binance Futures, etc.).
 
 ## Instalación
 ```bash
@@ -19,14 +23,23 @@ La primera vez Telethon pedirá tu teléfono y código de Telegram.
 - Define `TG_ALLOWED_SENDERS` para que solo el admin del grupo pueda disparar operaciones.
 - Seguir señales de terceros es de alto riesgo; el bot no garantiza ganancias.
 
+## Instrumentos y alias
+`bot/aliases.json` traduce nombres libres ("oro", "nasdaq", "dax") al símbolo estándar; edítalo a tu gusto.
+En MT5 el bot busca el símbolo en tu broker automáticamente (admite sufijos como `EURUSDm` o `EURUSD.a`;
+si falla, fija `MT5_SYMBOL_SUFFIX`). El lote se calcula con el valor del tick del propio símbolo, así que
+el riesgo por operación es correcto para cualquier instrumento. Si hay varios TPs, abre una posición por TP.
+
 ## Formatos reconocidos
 ```
-#BTCUSDT LONG
-Entry: 60000
-TP1: 61000
-TP2: 62000
-SL: 59000
-Leverage 10x
+BUY EUR/USD @ 1.0850
+SL 1.0820
+TP1 1.0880
+TP2 1.0920
+```
+```
+Vender oro ahora      (sin entrada = a mercado)
+SL 2360.5
+TP 2340
 ```
 También en español (`Entrada`, `Objetivo`, `Compra/Venta`). Si el formato de tu grupo es distinto,
 ajusta `bot/parser.py` y los tests en `tests/`.

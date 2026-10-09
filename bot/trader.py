@@ -58,6 +58,11 @@ class Trader:
     # ---------- ejecucion ----------
     def execute(self, s: Signal) -> dict | None:
         c = self.cfg
+        quote = "USDT" if s.symbol.endswith("USDT") else "USDC" if s.symbol.endswith("USDC") else None
+        if not quote:
+            log.warning("%s no es un par cripto; usa BROKER=mt5 para forex/indices", s.symbol)
+            return None
+        s.symbol = f"{s.symbol[:-len(quote)]}/{quote}:{quote}"
         if s.symbol not in self.ex.markets:
             log.warning("Simbolo no disponible en el exchange: %s", s.symbol)
             return None

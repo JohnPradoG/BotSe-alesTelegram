@@ -1,0 +1,12 @@
+{
+  "oro": "XAUUSD", "gold": "XAUUSD",
+  "plata": "XAGUSD", "silver": "XAGUSD",
+  "nasdaq": "NAS100", "nas100": "NAS100", "us100": "NAS100", "ustec": "NAS100",
+  "dow jones": "US30", "dow": "US30", "dj30": "US30", "us30": "US30", "wall street": "US30",
+  "sp500": "US500", "s&p500": "US500", "s&p 500": "US500", "spx500": "US500", "us500": "US500",
+  "dax": "GER40", "ger40": "GER40", "de40": "GER40", "ger30": "GER40",
+  "ftse": "UK100", "uk100": "UK100",
+  "petroleo": "USOIL", "petróleo": "USOIL", "wti": "USOIL", "usoil": "USOIL", "crudo": "USOIL",
+  "brent": "UKOIL", "ukoil": "UKOIL",
+  "dolar yen": "USDJPY", "dólar yen": "USDJPY"
+}
